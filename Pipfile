@@ -16,3 +16,8 @@ mypy = "*"
 pre-commit = "*"
 pytest = "*"
 pytest-cov = "*"
+boto3 = "*"
+pynamodb = "*"
+
+[pipenv]
+allow_prereleases = true
