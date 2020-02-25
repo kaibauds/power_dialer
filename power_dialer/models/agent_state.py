@@ -1,30 +1,40 @@
-from pynamodb.attributes import UnicodeAttribute, UTCDateTimeAttribute
-from pynamodb.constants import STRING
-from pynamodb.models import Model
-
-AGENT_STATUS = ("OFF", "LOGGED_IN", "IN_CALL", "DIALING", "INACTIVE")
+from db_impl.dynamo import AgentState
 
 
-class EnumUnicodeAttribute(UnicodeAttribute):
-
-    attr_type = STRING
-
-    def serialize(self, value):
-        if value not in AGENT_STATUS:
-            raise ValueError(
-                f"{self.attr_name} must be one of {AGENT_STATUS}, not '{value}'"
-            )
-        else:
-            return UnicodeAttribute.serialize(self, value)
+def exists():
+    return AgentState.exists()
 
 
-class AgentState(Model):
-    class Meta:
+def get_all():
+    return AgentState.scan()
 
-        table_name = "agent_state"
-        host = "http://localhost:8000"
 
-    agent_id = UnicodeAttribute(hash_key=True)
-    status = EnumUnicodeAttribute(null=True, default="OFF")
-    last_status_change_time = UTCDateTimeAttribute(null=True)
-    last_status = EnumUnicodeAttribute(default="OFF")
+def create_table():
+    AgentState.create_table(read_capacity_units=10, write_capacity_units=10)
+
+
+def init(agent_id):
+    if query(agent_id) is None:
+        agent_state = AgentState(agent_id)
+        agent_state.save()
+        return agent_state
+
+
+def query(agent_id):
+    try:
+        return AgentState.get(agent_id)
+    except Exception:
+        return None
+
+
+def delete(agent_id):
+    try:
+        AgentState.get(agent_id).delete()
+    except Exception:
+        print("Agent might not exist")
+
+
+def update(state, attr_dict):
+    for key, value in attr_dict.items():
+        setattr(state, key, value)
+    return state

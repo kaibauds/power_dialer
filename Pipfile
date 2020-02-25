@@ -18,6 +18,7 @@ pytest = "*"
 pytest-cov = "*"
 boto3 = "*"
 pynamodb = "*"
+pampy = "*"
 
 [pipenv]
 allow_prereleases = true

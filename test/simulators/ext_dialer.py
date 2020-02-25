@@ -1,5 +1,7 @@
 from time import sleep
 
+from power_dialer.utils import thprint
+
 
 """
 The simulator of the dialer. The time taken for the dialing and
@@ -11,8 +13,10 @@ Means dialing will succeed in 100 millisecond and the call will alst 200 millise
 
 
 def dial(number, test_arg):
+    thprint(f"++++ external dialer for {number} with arguments: {test_arg} ++++")
     (dialing_result, delay, _call_length) = test_arg
     sleep(delay)
+    thprint(f"++++ external dialer returns: {dialing_result} ++++")
     return dialing_result
 
 

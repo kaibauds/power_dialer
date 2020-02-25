@@ -1,14 +1,36 @@
 import test.simulators.ext_dialer as ext_dialer
+
+# import power_dialer.utils as utils
 from queue import Queue
 from threading import Thread
 
-# Alternatively, the simulator module can be loaded
-# dynamically when it is not PROD environment.
-# from importlib import import_module
+from power_dialer.utils import thprint
+
+"""
+Spare some numbers exclusivley for testing purpose. Dialer will
+use simulators to run the dialing and call for these numbers.
+Testing numbers and testing arguments re given in a dictionay.
+Testing argument example:
+            test_arg=('SUCCESS', 0.1, 0.2)
+It means dialing will succeed in 100 millisecond and the call
+will alst 200 millisecond.
+"""
+
+testing_number_and_arg_dict = {
+    "000-0000": ("SUCCESS", 0, 0.1),
+    "111-1111": ("SUCCESS", 0.1, 0.2),
+    "222-2222": ("SUCCESS", 0.2, 0.2),
+    "333-3333": ("FAIL", 0.1, 0),
+    "444-4444": ("FAIL", 0.2, 0),
+    "555-5555": ("FAIL", 0.3, 0),
+}
+
+default_arg = ("SUCCESS", 0, 3600)
 
 
-def _port_func_dial(env):
-    if env != "PROD":
+def _port_func_dial(phone_number, env):
+    global testing_number_and_arg_dict
+    if env != "PROD" or phone_number in testing_number_and_arg_dict.keys():
 
         """
         Dialer simulator is used for non-prodction environment
@@ -20,11 +42,11 @@ def _port_func_dial(env):
         The actual external port fucntion for dialing
         in the production environment should be referred here
         """
-        return lambda arg: None
+        return lambda *arg: None
 
 
-def _port_func_watch_call(env):
-    if env != "PROD":
+def _port_func_watch_call(phone_number, env):
+    if env != "PROD" or phone_number in testing_number_and_arg_dict.keys():
 
         """
         Dialer simulator is loaded for non-prodction environment
@@ -39,32 +61,34 @@ def _port_func_watch_call(env):
         return lambda arg: None
 
 
-"""
-Every dialing will be a Dialer object, so that functions
-such as "end_dialing" can be provided with the object
-"""
-
-
 class Dialer:
-    number = None
-    port_func_dial = None
-    result = Queue()
-    call = None
+    """
+    Each dialing will be a Dialer object
+    """
 
-    def __init__(self, number, env="PROD", arg=None):
+    def __init__(self, number, env="PROD"):
+        global testing_number_and_arg_dict, default_arg
         self.number = number
-        self.port_func_dial = _port_func_dial(env)
+        self.port_func_dial = _port_func_dial(number, env)
+        self.result = Queue()
+        self.call = None
 
         """
         dial() should be called sychronously in a thread, so that
-        the Dialer instance can be returned immediately
+        the Dialer object can be returned immediately
         """
 
-        Thread.run(self._dial, [self, number, env, arg])
+        Thread(
+            target=self._dial,
+            args=(number, env, testing_number_and_arg_dict.get(number, default_arg)),
+            daemon=True,
+        ).start()
 
     def _dial(self, number, env, arg):
 
         dialing_result = self.port_func_dial(number, arg)
+
+        thprint(f" ---- _dial got dialing_result: {dialing_result} ----")
 
         if dialing_result == "SUCCESS":
 
@@ -79,19 +103,19 @@ class Dialer:
     def get_result(self):
         return self.result.get()
 
-    def end_dialing():
+    def end_dialing(self):
         """ end a dialing gracefully here """
         pass
 
 
 class Call:
-    result = Queue()
-    number = None
-
     def __init__(self, number, env="PROD", arg=None):
         self.number = number
-        self.port_func_watch_call = _port_func_watch_call(env)
-        Thread.run(self._watch_the_call, [self, number, env, arg])
+        self.port_func_watch_call = _port_func_watch_call(number, env)
+        self.result = Queue()
+        Thread(
+            target=self._watch_the_call, args=(number, env, arg), daemon=True
+        ).start()
 
     def _watch_the_call(self, number, env, arg):
         self.port_func_watch_call(number, arg)
