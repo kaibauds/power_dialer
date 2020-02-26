@@ -93,7 +93,7 @@ class PowerDialer:
     def dial_sync(self):
         lead_number = leads_pool.take_a_lead()
         utils.thprint(
-            f"{utils.time_now()}---- Dialing      ---- number {lead_number} ---- agent {self.agent_id} ----"
+            f"{utils.time_now()}---- dialing         ---- number {lead_number} ---- agent {self.agent_id} ----"
         )
         dialer = Dialer(lead_number)
         """
@@ -144,7 +144,7 @@ class PowerDialer:
     def on_call_failed(self, number):
         self.dialing_in_parallel -= 1
         utils.thprint(
-            f"{utils.time_now()}---- call fail    ---- number {number} ---- agent {self.agent_id} ----"
+            f"{utils.time_now()}---- dialing fail    ---- number {number} ---- agent {self.agent_id} ----"
         )
         if number in self.lead_dialer_map.keys():
             del self.lead_dialer_map[number]
@@ -154,7 +154,7 @@ class PowerDialer:
     def on_call_dropped(self, number):
         self.dialing_in_parallel -= 1
         utils.thprint(
-            f"{utils.time_now()}---- call drop    ---- number {number} ---- agent {self.agent_id} ----"
+            f"{utils.time_now()}---- dialing dropped ---- number {number} ---- agent {self.agent_id} ----"
         )
         if number in self.lead_dialer_map.keys():
             del self.lead_dialer_map[number]
@@ -164,7 +164,7 @@ class PowerDialer:
     def on_call_started(self, call):
         self.dialing_in_parallel -= 1
         utils.thprint(
-            f"{utils.time_now()}---- call started ---- number {call.number} ---- agent {self.agent_id} ----"
+            f"{utils.time_now()}---- call started    ---- number {call.number} ---- agent {self.agent_id} ----"
         )
         if self.state.status == "READY":
             self.call = call
@@ -187,13 +187,13 @@ class PowerDialer:
         else:
             """Force the termination of the call if the state is not right"""
             utils.thprint(
-                f"{utils.time_now()}---- drop call   ---- number {call.number} ---- agent {self.agent_id} ----"
+                f"{utils.time_now()}---- terminate call ---- number {call.number} ---- agent {self.agent_id} ----"
             )
             self.call.end_the_call()
 
     def on_call_ended(self, number):
         utils.thprint(
-            f"{utils.time_now()}---- call ended   ---- number {number} ---- agent {self.agent_id} ----"
+            f"{utils.time_now()}---- call ended     ---- number {number} ---- agent {self.agent_id} ----"
         )
         if self.state.status == "IN_CALL":
             self.call = None

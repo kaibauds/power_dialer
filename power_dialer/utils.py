@@ -1,5 +1,5 @@
-from threading import Lock
 import time
+from threading import Lock
 
 plock = Lock()
 

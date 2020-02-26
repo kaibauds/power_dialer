@@ -1,5 +1,23 @@
-# Power Dialer
+# Power Dialer v0.1
 &nbsp;
+
+## Installation
+ 
+#### 1. Install python 3.8
+#### 2. Install pipenv
+#### 3. Install local DynamoDB (keep the default port at 8000)
+#### 4. Clone this project
+#### 5. Give it a try by following [a manual test](manual_testing.md)
+
+## To do
+
+* Automated test script
+* User Guide of APIs
+* User Guide of integration
+* Updated desgin documentation
+* Add logging feature
+* ...
+
 
 ## Design
 

@@ -37,7 +37,11 @@ def add_test_lead(lead_number, arg):
     global testing_number_and_arg_dict
     if type(lead_number) == str:
         (result, delay, lasting) = arg
-        if result in ["SUCCESS", "FAIL"] and type(delay) in [int, float] and type(lasting) in [int, float]:
+        if (
+            result in ["SUCCESS", "FAIL"]
+            and type(delay) in [int, float]
+            and type(lasting) in [int, float]
+        ):
             testing_number_and_arg_dict[lead_number] = arg
 
 
