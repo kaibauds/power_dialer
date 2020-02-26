@@ -1,4 +1,5 @@
 from threading import Lock
+import time
 
 plock = Lock()
 
@@ -11,6 +12,10 @@ def thprint(*a, **b):
     global plock
     with plock:
         print(*a, **b)
+
+
+def time_now():
+    return time.strftime("%H:%M:%S")
 
 
 class Singleton:

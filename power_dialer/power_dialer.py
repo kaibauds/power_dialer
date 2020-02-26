@@ -12,7 +12,6 @@ import power_dialer.models.agent_state as agent_state
 import power_dialer.ports.leads_pool as leads_pool
 import power_dialer.utils as utils
 from power_dialer.ports.dialer import Dialer
-from power_dialer.utils import thprint
 
 """
 The maximum parallel dialings for an agent.
@@ -36,10 +35,10 @@ class PowerDialer:
         self.event_queue = Queue()
         self.lead_dialer_map = dict()
         self.call = None
+        self.dialing_in_parallel = 0
         Thread(target=self.event_loop, daemon=True).start()
 
     def event_loop(self):
-        utils.thprint(f"---- agent: {self.agent_id} waiting for event ---")
         if (
             match(
                 self.event_queue.get(),
@@ -47,11 +46,13 @@ class PowerDialer:
                 self.on_agent_login,
                 "dialing",
                 self.on_dialing,
-                "call_fail",
+                ("call_fail", _),
                 self.on_call_failed,
+                ("call_drop", _),
+                self.on_call_dropped,
                 ("call_start", _),
                 self.on_call_started,
-                "call_end",
+                ("call_end", _),
                 self.on_call_ended,
                 "logout",
                 self.on_agent_logout,
@@ -74,89 +75,129 @@ class PowerDialer:
     def trigger_dialing(self):
         self.event_queue.put("dialing")
 
-    def notify_dialing_fail(self, _e):
-        self.event_queue.put("call_fail")
+    def notify_dialing_fail(self, number):
+        self.event_queue.put(("call_fail", number))
 
-    def notify_call_started(self, number):
-        self.event_queue.put(("call_start", number))
+    def notify_drop_dialing(self, number):
+        self.event_queue.put(("call_drop", number))
 
-    def notify_call_end(self):
-        self.event_queue.put("call_end")
+    def notify_call_started(self, call):
+        self.event_queue.put(("call_start", call))
+
+    def notify_call_end(self, number):
+        self.event_queue.put(("call_end", number))
 
     def terminate(self):
         self.event_queue.put("stop")
 
-    def _handle_success_dialing(self, call):
-        setattr(self, "call", call)
-        self.notify_call_started(call.number)
-
     def dial_sync(self):
-        lead_number = leads_pool.get()
-        dialer = Dialer(lead_number)
-        self.lead_dialer_map[lead_number] = dialer
-        thprint("<<<<<<<<<<<<<<<")
-        match(
-            dialer.get_result(),
-            ("SUCCESS", _),
-            self._handle_success_dialing,
-            "FAIL",
-            self.notify_dialing_fail,
+        lead_number = leads_pool.take_a_lead()
+        utils.thprint(
+            f"{utils.time_now()}---- Dialing      ---- number {lead_number} ---- agent {self.agent_id} ----"
         )
-        thprint(">>>>>>>>>>>>>>")
+        dialer = Dialer(lead_number)
+        """
+        There is no race condition concern with the following
+        due to the lead number being the index.
+        """
+        self.lead_dialer_map[lead_number] = dialer
+        dialing_result = dialer.get_result()
+        match(
+            dialing_result,
+            ("SUCCESS", _),
+            self.notify_call_started,
+            ("FAIL", _),
+            self.notify_dialing_fail,
+            ("DROP", _),
+            self.notify_drop_dialing,
+        )
+
+    def call_sync(self):
+        match(
+            self.call.get_result(),
+            ("CALL_END", _),
+            self.notify_call_end,
+            _,
+            lambda _e: None,
+        )
 
     def multi_dial_parallel(self, n):
         for i in range(n):
             Thread(target=self.dial_sync, daemon=True).start()
 
     def on_agent_login(self, _e):
-        utils.thprint(f"---- agent {self.agent_id} logged in ----")
+        utils.thprint(f"---- Agent {self.agent_id} logged in ----")
         if self.state.status in {"OFF", "INACTIVE"}:
-            self.update_state(
-                {"status": "READY", "cdc": 0, "last_action_time": datetime.now()}
-            )
+            self.update_state({"status": "READY", "last_action_time": datetime.now()})
             self.trigger_dialing()
 
     def on_dialing(self, _e):
-        utils.thprint(f"---- dialing is triggered for agent {self.agent_id}  ----")
+        # utils.thprint(f"---- Dialing is launched for agent {self.agent_id}  ----")
         global DIAL_RATIO
         if self.state.status in ("OFF", "IN_CALL"):
             warn("wrong state")
             return
         if self.state.status == "READY":
-            cdc = self.state.cdc
-            self.update_state({"cdc": DIAL_RATIO})
-            self.multi_dial_parallel(DIAL_RATIO - cdc)
+            self.multi_dial_parallel(DIAL_RATIO - self.dialing_in_parallel)
+            self.dialing_in_parallel = DIAL_RATIO
 
-    def on_call_failed(self, _e):
-        utils.thprint(f"---- A dialing failed for agent {self.agent_id} ----")
+    def on_call_failed(self, number):
+        self.dialing_in_parallel -= 1
+        utils.thprint(
+            f"{utils.time_now()}---- call fail    ---- number {number} ---- agent {self.agent_id} ----"
+        )
+        if number in self.lead_dialer_map.keys():
+            del self.lead_dialer_map[number]
         if self.state.status == "READY":
-            self.update_state({"cdc": self.state.cdc - 1})
             self.trigger_dialing()
 
-    def on_call_started(self, phone_number):
+    def on_call_dropped(self, number):
+        self.dialing_in_parallel -= 1
         utils.thprint(
-            f"---- A call to number {phone_number} started for agent {self.agent_id} ----"
+            f"{utils.time_now()}---- call drop    ---- number {number} ---- agent {self.agent_id} ----"
+        )
+        if number in self.lead_dialer_map.keys():
+            del self.lead_dialer_map[number]
+        if self.state.status == "READY":
+            self.trigger_dialing()
+
+    def on_call_started(self, call):
+        self.dialing_in_parallel -= 1
+        utils.thprint(
+            f"{utils.time_now()}---- call started ---- number {call.number} ---- agent {self.agent_id} ----"
         )
         if self.state.status == "READY":
+            self.call = call
             self.update_state(
                 {
                     "status": "IN_CALL",
-                    "latest_lead": phone_number,
+                    "latest_lead": call.number,
                     "timestatmp": datetime.now(),
                 }
             )
             for dialer in self.lead_dialer_map.values():
-                dialer.end_dialing()
+                if dialer.number != call.number:
+                    dialer.end_dialing()
+                    """ put the losing lead back to the leads pool"""
+                    leads_pool.add_a_lead(dialer.number)
+                # gracefully end the dialing to the losing leads
+                del dialer
+            self.lead_dialer_map.clear()
+            Thread(target=self.call_sync, daemon=True).start()
         else:
-            warn("wrong state")
-            self.call.end_call(phone_number)
-
-    def on_call_ended(self, _e):
-        utils.thprint(f"---- A call endded for agent {self.agent_id} ----")
-        if self.state.status == "IN_CALL":
-            self.update_state(
-                {"status": "READY", "last_action_time": datetime.now(), "cdc": 0}
+            """Force the termination of the call if the state is not right"""
+            utils.thprint(
+                f"{utils.time_now()}---- drop call   ---- number {call.number} ---- agent {self.agent_id} ----"
             )
+            self.call.end_the_call()
+
+    def on_call_ended(self, number):
+        utils.thprint(
+            f"{utils.time_now()}---- call ended   ---- number {number} ---- agent {self.agent_id} ----"
+        )
+        if self.state.status == "IN_CALL":
+            self.call = None
+            self.update_state({"status": "READY", "last_action_time": datetime.now()})
             self.trigger_dialing()
 
     def on_agent_logout(self, _e):

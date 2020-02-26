@@ -7,6 +7,7 @@ from pampy import _, match
 
 import power_dialer.models.agent_state as agent_state
 import power_dialer.ports.leads_pool as leads_pool
+import power_dialer.ports.dialer as dialer
 import power_dialer.utils as utils
 from power_dialer.power_dialer import PowerDialer
 
@@ -81,6 +82,16 @@ def list_all_agents():
 
 def list_all_power_dialers():
     return the_app.agent_power_dialer_map
+
+
+def print_all_test_leads():
+    all_test_leads= dialer.all_test_leads()
+    for x in all_test_leads:
+        print(x, all_test_leads[x])
+
+
+def add_test_lead(number, arg):
+    dialer.add_test_lead(number, arg)
 
 
 class PowerDialerApp(utils.Singleton):

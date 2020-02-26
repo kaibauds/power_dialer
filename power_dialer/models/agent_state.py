@@ -13,6 +13,10 @@ def create_table():
     AgentState.create_table(read_capacity_units=10, write_capacity_units=10)
 
 
+def delete_table():
+    AgentState.delete_table()
+
+
 def init(agent_id):
     if query(agent_id) is None:
         agent_state = AgentState(agent_id)

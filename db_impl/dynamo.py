@@ -1,4 +1,5 @@
-from pynamodb.attributes import NumberAttribute, UnicodeAttribute, UTCDateTimeAttribute
+from pynamodb.attributes import UnicodeAttribute, UTCDateTimeAttribute
+# from pynamodb.attributes import NumberAttribute
 from pynamodb.constants import STRING
 from pynamodb.models import Model
 
@@ -26,6 +27,5 @@ class AgentState(Model):
 
     agent_id = UnicodeAttribute(hash_key=True)
     status = EnumUnicodeAttribute(null=True, default="OFF")
-    cdc = NumberAttribute(null=True)
     latest_lead = UnicodeAttribute(null=True)
     last_action_time = UTCDateTimeAttribute(null=True)

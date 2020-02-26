@@ -4,7 +4,7 @@ import test.simulators.ext_dialer as ext_dialer
 from queue import Queue
 from threading import Thread
 
-from power_dialer.utils import thprint
+# from power_dialer.utils import thprint
 
 """
 Spare some numbers exclusivley for testing purpose. Dialer will
@@ -17,10 +17,10 @@ will alst 200 millisecond.
 """
 
 testing_number_and_arg_dict = {
-    "000-0000": ("SUCCESS", 0, 0.1),
-    "111-1111": ("SUCCESS", 0.1, 0.2),
+    "000-0000": ("SUCCESS", 15, 30),
+    "111-1111": ("SUCCESS", 10, 20),
     "222-2222": ("SUCCESS", 0.2, 0.2),
-    "333-3333": ("FAIL", 0.1, 0),
+    "333-3333": ("FAIL", 5, 0),
     "444-4444": ("FAIL", 0.2, 0),
     "555-5555": ("FAIL", 0.3, 0),
 }
@@ -28,9 +28,22 @@ testing_number_and_arg_dict = {
 default_arg = ("SUCCESS", 0, 3600)
 
 
+def all_test_leads():
+    global testing_number_and_arg_dict
+    return testing_number_and_arg_dict
+
+
+def add_test_lead(lead_number, arg):
+    global testing_number_and_arg_dict
+    if type(lead_number) == str:
+        (result, delay, lasting) = arg
+        if result in ["SUCCESS", "FAIL"] and type(delay) in [int, float] and type(lasting) in [int, float]:
+            testing_number_and_arg_dict[lead_number] = arg
+
+
 def _port_func_dial(phone_number, env):
     global testing_number_and_arg_dict
-    if env != "PROD" or phone_number in testing_number_and_arg_dict.keys():
+    if env != "PROD" or phone_number in all_test_leads().keys():
 
         """
         Dialer simulator is used for non-prodction environment
@@ -88,8 +101,6 @@ class Dialer:
 
         dialing_result = self.port_func_dial(number, arg)
 
-        thprint(f" ---- _dial got dialing_result: {dialing_result} ----")
-
         if dialing_result == "SUCCESS":
 
             """
@@ -98,12 +109,13 @@ class Dialer:
             """
             self.result.put(("SUCCESS", Call(self.number, env, arg)))
         else:
-            self.result.put("FAIL")
+            self.result.put(("FAIL", number))
 
     def get_result(self):
         return self.result.get()
 
     def end_dialing(self):
+        self.result.put(("DROP", self.number))
         """ end a dialing gracefully here """
         pass
 
@@ -119,7 +131,7 @@ class Call:
 
     def _watch_the_call(self, number, env, arg):
         self.port_func_watch_call(number, arg)
-        self.result.put("CALL_END")
+        self.result.put(("CALL_END", number))
 
     def get_result(self):
         return self.result.get()

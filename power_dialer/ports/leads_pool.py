@@ -12,7 +12,7 @@ class LeadsPool(Singleton, Queue):
         super(LeadsPool, self).__init__()
 
 
-def get():
+def take_a_lead():
     global leads_pool
     try:
         return leads_pool.get()
@@ -20,9 +20,15 @@ def get():
         return None
 
 
-def put(number):
+def add_a_lead(number):
     global leads_pool
     leads_pool.put(number)
+
+
+def add_leads(numbers):
+    global leads_pool
+    for number in numbers:
+        add_a_lead(number)
 
 
 def init():
